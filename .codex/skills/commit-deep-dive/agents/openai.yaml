@@ -1,0 +1,7 @@
+interface:
+  display_name: "Commit Deep Dive"
+  short_description: "최근 커밋 변화와 학습 포인트를 프로젝트 문서로 정리"
+  default_prompt: "Use $commit-deep-dive to summarize my latest commit, extract study keywords, and write a deep-dive note for this project."
+
+policy:
+  allow_implicit_invocation: true
