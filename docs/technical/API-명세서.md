@@ -5,6 +5,7 @@
 - 모든 입력은 서버에서 검증한다.
 - 응답 형식은 provider와 무관하게 통일한다.
 - 에러 코드는 프론트엔드가 처리 가능한 형태로 (HTTP 상태 코드와 함께) 표준화한다.
+- 초기 MVP 기본 provider는 OpenAI, 기본 모델은 `gpt-5-nano`다.
 
 ---
 
@@ -17,16 +18,15 @@
 
 ```json
 {
-  "mode": "rewrite", // Enum: "autocomplete" | "rewrite" | "grammar_check" | "translate"
+  "mode": "autocomplete", // MVP Enum: "autocomplete"
   "prefix": "I went to the",
   "suffix": "yesterday and it was fun.", // 커서 뒤 텍스트 (옵션, autocomplete 시 유용)
-  "selection": "This sentence is awkward.",
   "paragraphContext": "Yesterday I visited Tokyo.",
   "languageSettings": {
     "native": "Korean",
-    "target": "English",
-    "proficiency": "intermediate"
-  }
+    "target": "English"
+  },
+  "provider": "openai"
 }
 ```
 
@@ -34,8 +34,9 @@
 
 ```json
 {
-  "output": "This sentence sounds awkward.",
+  "output": "park",
   "provider": "openai",
+  "model": "gpt-5-nano",
   "requestId": "req_123"
 }
 ```
@@ -71,6 +72,12 @@ event: error
 data: {"code": "PROVIDER_RATE_LIMIT", "message": "Rate limit exceeded"}
 ```
 
+### UI 처리 원칙
+
+- 정상 상태에서는 토큰 스트림이 ghost text로 editor 내부에 반영되어야 한다.
+- `PROVIDER_AUTH_FAILED` 같은 전역 설정 문제는 toast 등 전역 알림으로 처리한다.
+- 개별 ghost 요청 실패/무효화는 editor 근처 inline notice 또는 무표시로 처리한다.
+
 ---
 
 ## 4. API Keys (Provider 설정)
@@ -93,6 +100,7 @@ data: {"code": "PROVIDER_RATE_LIMIT", "message": "Rate limit exceeded"}
 **고려 사항:**
 - 서버 측 암호화 암복호화 적용
 - 잘못된 키 검증 기능, 검증 실패 시 에러 타입 반환
+- API Key 원문은 저장 이후 조회 API에서 절대 반환하지 않음
 
 ### 4.2. GET /api/keys
 
@@ -121,6 +129,11 @@ data: {"code": "PROVIDER_RATE_LIMIT", "message": "Rate limit exceeded"}
   "provider": "openai"
 }
 ```
+
+### 4.4. MVP 기본값
+
+- provider 기본값: `openai`
+- model 기본값: `gpt-5-nano`
 
 ---
 
