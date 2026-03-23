@@ -9,11 +9,41 @@
 ## 0. 선행 기준 확정
 
 ### 0-1. completion 요청 최소 payload 확정
-- [ ] `autocomplete` 전용 요청 필드 최종 확정
-  - 후보: `prefix`, `suffix`, `paragraphContext`, `languageSettings`, `provider`
-- [ ] 응답 필드 최종 확정
-  - 후보: `output`, `provider`, `model`, `requestId`
-- [ ] 클라이언트/서버 양쪽에서 동일하게 참조할 타입 초안 정리
+- [x] `autocomplete` 전용 요청 필드 최종 확정
+  - 1차 MVP 요청 필드:
+    - `prefix`: 커서 앞 텍스트
+    - `suffix`: 커서 뒤 텍스트
+    - `languageSettings`: `{ nativeLanguage, targetLanguage }`
+    - `provider`: `'openai'`
+  - 1차 실험 길이 제한:
+    - `prefix`: 마지막 1200자까지
+    - `suffix`: 처음 300자까지
+  - 위 길이 제한은 고정 규칙이 아니라 실험 시작점으로 간주
+    - UX 품질 개선이나 토큰 비용 최적화가 필요해지면 조정하면서 재실험
+  - 현재 문단 전체(`currentParagraph`)는 1차 MVP에서 제외
+  - 인접 문단 맥락(`previousParagraphTail`, `nextParagraphHead`)도 1차 MVP에서 제외하고, 품질 부족 시 추가 검토
+- [x] 응답 필드 최종 확정
+  - 1차 MVP 성공 응답 필드:
+    - `output`: ghost text 후보 문자열
+    - `requestId`: 요청 식별자
+  - `provider`, `model`은 1차 MVP 성공 응답에서 필수 아님
+    - 이유: 초기 provider/model이 사실상 고정값(OpenAI + `gpt-5-nano`)이고, UI 렌더링에도 직접 필요하지 않음
+    - 필요 시 서버 로그 또는 추후 디버그 응답 확장으로 추가 가능
+- [x] 클라이언트/서버 양쪽에서 동일하게 참조할 타입 초안 정리
+  - 예시:
+    - `AutocompleteRequest`
+      - `prefix: string`
+      - `suffix: string`
+      - `languageSettings: { nativeLanguage: string; targetLanguage: string }`
+      - `provider: 'openai'`
+    - `AutocompleteResponse`
+      - `output: string`
+      - `requestId: string`
+- [x] 추가 원칙 정리
+  - completion API는 상태를 누적하지 않는 stateless 요청으로 시작
+  - 문맥은 매 요청마다 `prefix` / `suffix`로만 전달
+  - 응답의 성공/실패 구분은 HTTP status + 공통 에러 포맷으로 처리
+  - `status`, `model`, `provider`, `finishReason` 같은 필드는 1차 MVP 성공 응답에서는 제외
 
 **완료 기준**
 - 구현 중 payload 형태를 다시 추측하지 않아도 된다.
@@ -21,91 +51,21 @@
 
 ---
 
-## 1. Editor foundation
+## 1. API / server foundation
 
-### 1-1. Tiptap client editor 마운트
-- [ ] `app/` 아래에 client editor 컴포넌트 추가
-- [ ] Tiptap 기본 에디터 인스턴스 생성
-- [ ] 현재 정적 editor shell 영역을 실제 editor로 교체
-- [ ] editor placeholder 또는 초기 텍스트 정책 정리
-
-### 1-2. 텍스트 중심 편집 환경 정리
-- [ ] 불필요한 리치 텍스트 기능 제거 또는 미노출 처리
-- [ ] 문단 입력 중심 레이아웃 구성
-- [ ] editor 스타일을 현재 페이지 톤과 맞게 최소 적용
-
-### 1-3. Ghost 연동용 editor 이벤트 표면 마련
-- [ ] 현재 문단 텍스트 읽기 방식 정리
-- [ ] 커서 위치 읽기 방식 정리
-- [ ] `Tab` / `Esc` / 추가 입력 / 커서 이동 이벤트 감지 지점 정리
-- [ ] 이후 Ghost Complete 훅이 붙을 수 있는 인터페이스 초안 마련
-
-**완료 기준**
-- 사용자가 실제 editor에 입력 가능하다.
-- text-only 편집 흐름이 유지된다.
-- 현재 문맥과 주요 키 이벤트를 코드에서 읽을 수 있다.
-
----
-
-## 2. Language settings
-
-### 2-1. 학습 언어 설정 UI
-- [ ] 모국어 선택 입력 추가
-- [ ] 목표 언어 선택 입력 추가
-- [ ] 필수값 미입력 상태 UI 처리
-- [ ] 현재 선택값 표시 UI 정리
-
-### 2-2. 언어 설정 상태 관리
-- [ ] language settings 로컬 상태 구조 정의
-- [ ] 새로고침 후 복원 방식 연결
-- [ ] editor/completion 요청 코드에서 설정값 접근 가능하게 연결
-
-**완료 기준**
-- 모국어/목표 언어를 입력하고 다시 열어도 복원된다.
-- completion 요청 직전에 현재 언어 설정을 안정적으로 읽을 수 있다.
-
----
-
-## 3. BYOK settings
-
-### 3-1. BYOK 입력 UI
-- [ ] provider 선택 UI 추가
-- [ ] API Key 입력 필드 추가
-- [ ] 저장 버튼 / 삭제 버튼 / 등록 상태 영역 추가
-- [ ] 원문 Key 재노출 금지 UI 반영
-
-### 3-2. BYOK 상태 조회/저장 연결
-- [ ] 등록 상태 조회 호출 연결
-- [ ] 저장 요청 연결
-- [ ] 삭제 요청 연결
-- [ ] 저장 중 / 저장 실패 / 미등록 상태 UI 처리
-
-### 3-3. 보안 정책 반영
-- [ ] 브라우저 localStorage 등에 API Key 원문을 저장하지 않도록 점검
-- [ ] 등록 여부만 보여주고 원문은 다시 표시하지 않도록 점검
-
-**완료 기준**
-- 사용자가 provider/API Key를 등록하고 삭제할 수 있다.
-- 화면에는 등록 상태만 보이고 원문 Key는 다시 보이지 않는다.
-- 클라이언트에 원문 Key 영구 저장 로직이 없다.
-
----
-
-## 4. API / server foundation
-
-### 4-1. API route 골격 생성
+### 1-1. API route 골격 생성
 - [ ] `POST /api/completion` route 추가
 - [ ] `POST /api/keys` route 추가
 - [ ] `GET /api/keys` route 추가
 - [ ] `DELETE /api/keys` route 추가
 
-### 4-2. 서버 계층 구조 생성
+### 1-2. 서버 계층 구조 생성
 - [ ] `src/server/use-cases/`에 completion use-case 추가
 - [ ] `src/server/services/`에 key 관리 / provider 호출 서비스 추가
 - [ ] `src/server/providers/`에 OpenAI adapter 추가
 - [ ] `src/server/lib/`에 공통 유틸 또는 타입 추가
 
-### 4-3. 요청 검증 / 응답 포맷
+### 1-3. 요청 검증 / 응답 포맷
 - [ ] completion 입력 검증
 - [ ] keys 입력 검증
 - [ ] 공통 에러 포맷 적용
@@ -118,15 +78,15 @@
 
 ---
 
-## 5. API Key 영구 저장
+## 2. API Key 영구 저장
 
-### 5-1. 저장 정책 구현
+### 2-1. 저장 정책 구현
 - [ ] API Key 암호화 저장 방식 결정 및 구현
 - [ ] 저장소 추상화 또는 최소 저장 모듈 작성
 - [ ] 등록 상태 조회 시 원문 비재노출 보장
 - [ ] 삭제 시 실제 저장값 제거 보장
 
-### 5-2. provider 호출 연동
+### 2-2. provider 호출 연동
 - [ ] completion 요청 시 저장된 API Key 조회
 - [ ] provider 호출 직전에만 복호/사용
 - [ ] 인증 실패 시 `PROVIDER_AUTH_FAILED`로 매핑
@@ -138,15 +98,15 @@
 
 ---
 
-## 6. OpenAI adapter
+## 3. OpenAI adapter
 
-### 6-1. OpenAI 기본 연동
+### 3-1. OpenAI 기본 연동
 - [ ] OpenAI 요청 payload 구성
 - [ ] 기본 모델을 `gpt-5-nano`로 연결
 - [ ] autocomplete 용도에 맞는 최소 prompt/context 전략 정리
 - [ ] provider 응답을 공통 응답 형태로 매핑
 
-### 6-2. 오류 처리
+### 3-2. 오류 처리
 - [ ] 인증 실패 매핑
 - [ ] rate limit / provider 오류 매핑
 - [ ] 예상하지 못한 응답 포맷 방어 처리
@@ -157,11 +117,81 @@
 
 ---
 
+## 4. Editor foundation
+
+### 4-1. Tiptap client editor 마운트
+- [ ] `app/` 아래에 client editor 컴포넌트 추가
+- [ ] Tiptap 기본 에디터 인스턴스 생성
+- [ ] 현재 정적 editor shell 영역을 실제 editor로 교체
+- [ ] editor placeholder 또는 초기 텍스트 정책 정리
+
+### 4-2. 텍스트 중심 편집 환경 정리
+- [ ] 불필요한 리치 텍스트 기능 제거 또는 미노출 처리
+- [ ] 문단 입력 중심 레이아웃 구성
+- [ ] editor 스타일을 현재 페이지 톤과 맞게 최소 적용
+
+### 4-3. Ghost 연동용 editor 이벤트 표면 마련
+- [ ] 현재 문단 텍스트 읽기 방식 정리
+- [ ] 커서 위치 읽기 방식 정리
+- [ ] `Tab` / `Esc` / 추가 입력 / 커서 이동 이벤트 감지 지점 정리
+- [ ] 이후 Ghost Complete 훅이 붙을 수 있는 인터페이스 초안 마련
+
+**완료 기준**
+- 사용자가 실제 editor에 입력 가능하다.
+- text-only 편집 흐름이 유지된다.
+- 현재 문맥과 주요 키 이벤트를 코드에서 읽을 수 있다.
+
+---
+
+## 5. Language settings
+
+### 5-1. 학습 언어 설정 UI
+- [ ] 모국어 선택 입력 추가
+- [ ] 목표 언어 선택 입력 추가
+- [ ] 필수값 미입력 상태 UI 처리
+- [ ] 현재 선택값 표시 UI 정리
+
+### 5-2. 언어 설정 상태 관리
+- [ ] language settings 로컬 상태 구조 정의
+- [ ] 새로고침 후 복원 방식 연결
+- [ ] editor/completion 요청 코드에서 설정값 접근 가능하게 연결
+
+**완료 기준**
+- 모국어/목표 언어를 입력하고 다시 열어도 복원된다.
+- completion 요청 직전에 현재 언어 설정을 안정적으로 읽을 수 있다.
+
+---
+
+## 6. BYOK settings
+
+### 6-1. BYOK 입력 UI
+- [ ] provider 선택 UI 추가
+- [ ] API Key 입력 필드 추가
+- [ ] 저장 버튼 / 삭제 버튼 / 등록 상태 영역 추가
+- [ ] 원문 Key 재노출 금지 UI 반영
+
+### 6-2. BYOK 상태 조회/저장 연결
+- [ ] 등록 상태 조회 호출 연결
+- [ ] 저장 요청 연결
+- [ ] 삭제 요청 연결
+- [ ] 저장 중 / 저장 실패 / 미등록 상태 UI 처리
+
+### 6-3. 보안 정책 반영
+- [ ] 브라우저 localStorage 등에 API Key 원문을 저장하지 않도록 점검
+- [ ] 등록 여부만 보여주고 원문은 다시 표시하지 않도록 점검
+
+**완료 기준**
+- 사용자가 provider/API Key를 등록하고 삭제할 수 있다.
+- 화면에는 등록 상태만 보이고 원문 Key는 다시 보이지 않는다.
+- 클라이언트에 원문 Key 영구 저장 로직이 없다.
+
+---
+
 ## 7. Ghost Complete hook / state
 
 ### 7-1. 요청 트리거
 - [ ] 입력 debounce 구현
-- [ ] 현재 문맥에서 `prefix` / `suffix` / `paragraphContext` 추출
+- [ ] 현재 문맥에서 `prefix` / `suffix` 추출
 - [ ] 언어 설정 / provider 설정을 요청에 포함
 
 ### 7-2. 상태 전이 구현
