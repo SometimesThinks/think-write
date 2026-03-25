@@ -3,7 +3,7 @@
 - 작성일: 2026-03-22
 - 기준 문서: `.omx/plans/mvp-work-breakdown-2026-03-21.md`
 - 목적: MVP 큰 계획을 바로 실행 가능한 작업 단위로 세분화한다.
-- 범위: 학습 언어 설정, Ghost Complete, BYOK 기반 provider 연동
+- 범위: 학습 언어 설정, Ghost Complete, `.env` 기반 provider 연동
 - 초기 고정값: OpenAI + `gpt-5-nano`
 
 ## 0. 선행 기준 확정
@@ -14,7 +14,6 @@
     - `prefix`: 커서 앞 텍스트
     - `suffix`: 커서 뒤 텍스트
     - `languageSettings`: `{ nativeLanguage, targetLanguage }`
-    - `provider`: `'openai'`
   - 1차 실험 길이 제한:
     - `prefix`: 마지막 1200자까지
     - `suffix`: 처음 300자까지
@@ -27,23 +26,19 @@
     - `output`: ghost text 후보 문자열
     - `requestId`: 요청 식별자
   - `provider`, `model`은 1차 MVP 성공 응답에서 필수 아님
-    - 이유: 초기 provider/model이 사실상 고정값(OpenAI + `gpt-5-nano`)이고, UI 렌더링에도 직접 필요하지 않음
-    - 필요 시 서버 로그 또는 추후 디버그 응답 확장으로 추가 가능
 - [x] 클라이언트/서버 양쪽에서 동일하게 참조할 타입 초안 정리
-  - 예시:
-    - `AutocompleteRequest`
-      - `prefix: string`
-      - `suffix: string`
-      - `languageSettings: { nativeLanguage: string; targetLanguage: string }`
-      - `provider: 'openai'`
-    - `AutocompleteResponse`
-      - `output: string`
-      - `requestId: string`
+  - `AutocompleteRequest`
+    - `prefix: string`
+    - `suffix: string`
+    - `languageSettings: { nativeLanguage: string; targetLanguage: string }`
+  - `AutocompleteResponse`
+    - `output: string`
+    - `requestId: string`
 - [x] 추가 원칙 정리
   - completion API는 상태를 누적하지 않는 stateless 요청으로 시작
   - 문맥은 매 요청마다 `prefix` / `suffix`로만 전달
+  - provider는 서버에서 OpenAI로 고정한다
   - 응답의 성공/실패 구분은 HTTP status + 공통 에러 포맷으로 처리
-  - `status`, `model`, `provider`, `finishReason` 같은 필드는 1차 MVP 성공 응답에서는 제외
 
 **완료 기준**
 - 구현 중 payload 형태를 다시 추측하지 않아도 된다.
@@ -54,22 +49,20 @@
 ## 1. API / server foundation
 
 ### 1-1. API route 골격 생성
-- [ ] `POST /api/completion` route 추가
-- [ ] `POST /api/keys` route 추가
-- [ ] `GET /api/keys` route 추가
-- [ ] `DELETE /api/keys` route 추가
+- [x] `POST /api/completion` route 추가
 
 ### 1-2. 서버 계층 구조 생성
-- [ ] `src/server/use-cases/`에 completion use-case 추가
-- [ ] `src/server/services/`에 key 관리 / provider 호출 서비스 추가
-- [ ] `src/server/providers/`에 OpenAI adapter 추가
-- [ ] `src/server/lib/`에 공통 유틸 또는 타입 추가
+- [x] `src/server/use-cases/`에 completion use-case 추가
+- [x] `src/server/services/`에 provider 호출 서비스 추가
+- [x] `src/server/providers/`에 provider adapter 추가
+- [x] `src/server/lib/`에 공통 route result 유틸 추가
 
 ### 1-3. 요청 검증 / 응답 포맷
-- [ ] completion 입력 검증
-- [ ] keys 입력 검증
-- [ ] 공통 에러 포맷 적용
-- [ ] request id 생성/반환 정책 정리
+- [x] completion 입력 검증
+- [x] 공통 에러 포맷 적용
+- [x] request id 생성/반환 정책 정리
+  - route 진입 시 `req_<uuid>` 형식으로 생성
+  - 성공/실패 응답 모두에 포함
 
 **완료 기준**
 - UI가 호출할 기본 API route가 존재한다.
@@ -78,23 +71,21 @@
 
 ---
 
-## 2. API Key 영구 저장
+## 2. provider runtime config
 
-### 2-1. 저장 정책 구현
-- [ ] API Key 암호화 저장 방식 결정 및 구현
-- [ ] 저장소 추상화 또는 최소 저장 모듈 작성
-- [ ] 등록 상태 조회 시 원문 비재노출 보장
-- [ ] 삭제 시 실제 저장값 제거 보장
+### 2-1. 서버 환경변수 로드 정책
+- [ ] `OPENAI_API_KEY` 로드 구현
+- [ ] `OPENAI_MODEL` 선택값 처리 또는 기본값 `gpt-5-nano` 고정
+- [ ] 서버 전용 환경변수 접근 지점 정리
 
-### 2-2. provider 호출 연동
-- [ ] completion 요청 시 저장된 API Key 조회
-- [ ] provider 호출 직전에만 복호/사용
-- [ ] 인증 실패 시 `PROVIDER_AUTH_FAILED`로 매핑
+### 2-2. 오류 처리 연결
+- [ ] 환경변수 누락 시 `PROVIDER_NOT_CONFIGURED` 반환
+- [ ] 잘못된 key 인증 실패 시 `PROVIDER_AUTH_FAILED` 매핑
 
 **완료 기준**
-- API Key는 서버에 암호화된 형태로 저장된다.
-- GET 응답이나 UI에 원문이 노출되지 않는다.
-- 삭제 후에는 provider 호출에 더 이상 사용되지 않는다.
+- API Key는 서버 환경변수에서만 읽는다.
+- 클라이언트와 응답 본문에 API Key 원문이 노출되지 않는다.
+- 설정 누락과 인증 실패가 전역 오류로 구분된다.
 
 ---
 
@@ -162,28 +153,21 @@
 
 ---
 
-## 6. BYOK settings
+## 6. provider config 안내 UI
 
-### 6-1. BYOK 입력 UI
-- [ ] provider 선택 UI 추가
-- [ ] API Key 입력 필드 추가
-- [ ] 저장 버튼 / 삭제 버튼 / 등록 상태 영역 추가
-- [ ] 원문 Key 재노출 금지 UI 반영
+### 6-1. 고정 provider 정보 노출
+- [ ] provider runtime 안내 UI 추가
+- [ ] `.env.local` 기반 실행 안내 문구 추가
+- [ ] in-app API Key 입력 UI를 만들지 않도록 점검
 
-### 6-2. BYOK 상태 조회/저장 연결
-- [ ] 등록 상태 조회 호출 연결
-- [ ] 저장 요청 연결
-- [ ] 삭제 요청 연결
-- [ ] 저장 중 / 저장 실패 / 미등록 상태 UI 처리
-
-### 6-3. 보안 정책 반영
-- [ ] 브라우저 localStorage 등에 API Key 원문을 저장하지 않도록 점검
-- [ ] 등록 여부만 보여주고 원문은 다시 표시하지 않도록 점검
+### 6-2. 전역 설정 상태 안내
+- [ ] provider 미설정 상태 문구 또는 안내 위치 정리
+- [ ] 설정 누락 시 토스트/배너 정책 연결
 
 **완료 기준**
-- 사용자가 provider/API Key를 등록하고 삭제할 수 있다.
-- 화면에는 등록 상태만 보이고 원문 Key는 다시 보이지 않는다.
-- 클라이언트에 원문 Key 영구 저장 로직이 없다.
+- 사용자는 provider가 runtime에서 결정된다는 점을 이해할 수 있다.
+- API Key 입력/저장/삭제 UI가 앱 안에 존재하지 않는다.
+- 설정 누락 시 어디를 수정해야 하는지 안내할 수 있다.
 
 ---
 
@@ -192,7 +176,7 @@
 ### 7-1. 요청 트리거
 - [ ] 입력 debounce 구현
 - [ ] 현재 문맥에서 `prefix` / `suffix` 추출
-- [ ] 언어 설정 / provider 설정을 요청에 포함
+- [ ] 언어 설정을 요청에 포함
 
 ### 7-2. 상태 전이 구현
 - [ ] `idle` → `loading` 전이
@@ -234,8 +218,8 @@
 ## 9. Error UX
 
 ### 9-1. 전역 문제 처리
+- [ ] provider 설정 누락용 안내 추가
 - [ ] API Key 인증 실패용 toast 추가
-- [ ] provider 미등록 상태용 전역 안내 추가
 
 ### 9-2. editor 맥락 문제 처리
 - [ ] ghost 요청 실패 inline notice 위치 결정
@@ -243,7 +227,7 @@
 - [ ] inline notice가 과하게 반복되지 않도록 최소 정책 적용
 
 **완료 기준**
-- 인증 실패 같은 전역 문제만 toast로 뜬다.
+- 인증 실패나 provider 설정 누락 같은 전역 문제만 toast/전역 안내로 뜬다.
 - ghost 흐름 문제는 editor 근처에서만 처리된다.
 - 정상 상태에서는 ghost text가 중심이 된다.
 
@@ -257,19 +241,11 @@
 
 ### 10-2. 수동 시나리오 검증
 - [ ] 언어 설정 저장/복원 확인
-- [ ] API Key 등록/조회 상태/삭제 확인
-- [ ] 미등록 상태에서 completion 요청 시 오류 처리 확인
-- [ ] 유효한 Key 등록 후 ghost text 표시 확인
-- [ ] `Tab` 수락 / `Esc` 무시 / 추가 입력 무효화 확인
-- [ ] 늦은 응답 무시 확인
-
-### 10-3. 품질 확인
+- [ ] `.env.local` 미설정 상태 오류 확인
+- [ ] 유효한 OpenAI Key로 completion 요청 성공 확인
 - [ ] `gpt-5-nano` 제안 품질 메모
-- [ ] 필요 시 상위 모델 fallback 검토 여부 기록
 
 **완료 기준**
-- lint/typecheck 통과
-- 핵심 사용자 흐름이 수동 검증에서 재현된다.
+- 정적 검증이 통과한다.
+- 환경변수 설정 전/후 시나리오가 모두 확인된다.
 - `gpt-5-nano` 유지 여부 판단 근거가 남는다.
-
----
