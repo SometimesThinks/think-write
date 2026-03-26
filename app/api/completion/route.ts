@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { createErrorResult, createRequestId } from '@/src/server/lib/route-result';
-import { validateAutocompleteRequest } from '@/src/server/lib/validate-autocomplete';
 import { complete } from '@/src/server/use-cases/completion';
+import { validateAutocompleteRequest } from '@/src/shared/validate-autocomplete-request';
 
-// 자동 완성 요청 내부 API
+// 자동 완성 내부 API
 export async function POST(request: NextRequest) {
   const requestId = createRequestId();
 
