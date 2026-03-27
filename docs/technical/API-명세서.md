@@ -88,4 +88,3 @@
 - `429 Too Many Requests`: `RATE_LIMIT_EXCEEDED` (Provider 요청 한도 초과)
 - `500 Internal Server Error`: `PROVIDER_NOT_CONFIGURED`, `INTERNAL_SERVER_ERROR`
 - `502 Bad Gateway`: `PROVIDER_API_ERROR` (Provider 서버 응답 지연/오류)
-- `501 Not Implemented`: `NOT_IMPLEMENTED` (route skeleton은 연결됐지만 provider 구현 전 단계)

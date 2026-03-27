@@ -2,7 +2,6 @@ import type { AutocompleteResponse } from '@/src/shared/autocomplete';
 
 export type ApiErrorCode =
   | 'INVALID_PARAMETERS'
-  | 'NOT_IMPLEMENTED'
   | 'PROVIDER_NOT_CONFIGURED'
   | 'PROVIDER_AUTH_FAILED'
   | 'RATE_LIMIT_EXCEEDED'
@@ -60,12 +59,4 @@ export function createErrorResult(
       },
     },
   };
-}
-
-// 미구현 상태 응답 생성 함수
-export function createNotImplementedResult(
-  message: string,
-  requestId: string,
-): RouteResult<ApiErrorResponse> {
-  return createErrorResult('NOT_IMPLEMENTED', message, 501, requestId);
 }
