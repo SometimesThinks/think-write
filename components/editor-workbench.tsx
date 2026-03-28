@@ -22,6 +22,7 @@ const INITIAL_CONTENT = '<p>I want to keep writing in English without losing my 
 
 type EditorSnapshot = {
   documentText: string;
+  paragraphText: string;
   prefix: string;
   suffix: string;
   selectionStart: number;
@@ -65,17 +66,56 @@ function trimSuffix(value: string) {
   return value.slice(0, AUTOCOMPLETE_SUFFIX_MAX_LENGTH);
 }
 
+type ParagraphContext = {
+  paragraphText: string;
+  prefix: string;
+  suffix: string;
+};
+
+// 현재 문단 컨텍스트 읽기 함수
+function readParagraphContext(
+  editor: NonNullable<ReturnType<typeof useEditor>>,
+): ParagraphContext {
+  const { doc, selection } = editor.state;
+  const { $from, to } = selection;
+
+  for (let depth = $from.depth; depth >= 0; depth -= 1) {
+    const node = $from.node(depth);
+
+    if (node.type.name !== 'paragraph') {
+      continue;
+    }
+
+    const paragraphStart = $from.start(depth);
+    const paragraphEnd = $from.end(depth);
+    const prefixEnd = Math.min(selection.from, paragraphEnd);
+    const suffixStart = Math.min(Math.max(to, paragraphStart), paragraphEnd);
+
+    return {
+      paragraphText: doc.textBetween(paragraphStart, paragraphEnd, '\n', '\n'),
+      prefix: doc.textBetween(paragraphStart, prefixEnd, '\n', '\n'),
+      suffix: doc.textBetween(suffixStart, paragraphEnd, '\n', '\n'),
+    };
+  }
+
+  return {
+    paragraphText: '',
+    prefix: '',
+    suffix: '',
+  };
+}
+
 // editor 스냅샷 생성 함수
 function createEditorSnapshot(editor: NonNullable<ReturnType<typeof useEditor>>): EditorSnapshot {
   const { doc, selection } = editor.state;
   const documentText = doc.textBetween(0, doc.content.size, '\n\n', '\n');
-  const prefix = doc.textBetween(0, selection.from, '\n\n', '\n');
-  const suffix = doc.textBetween(selection.to, doc.content.size, '\n\n', '\n');
+  const paragraphContext = readParagraphContext(editor);
 
   return {
     documentText,
-    prefix,
-    suffix,
+    paragraphText: paragraphContext.paragraphText,
+    prefix: paragraphContext.prefix,
+    suffix: paragraphContext.suffix,
     selectionStart: selection.from,
     selectionEnd: selection.to,
   };
@@ -230,6 +270,7 @@ export function EditorWorkbench() {
   const [settingsScreen, setSettingsScreen] = useState<'list' | 'language'>('list');
   const [snapshot, setSnapshot] = useState<EditorSnapshot>({
     documentText: '',
+    paragraphText: '',
     prefix: '',
     suffix: '',
     selectionStart: 0,
