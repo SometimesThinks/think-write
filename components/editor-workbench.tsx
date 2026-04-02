@@ -2,12 +2,18 @@
 
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { DebugPanel } from '@/components/debug-panel';
+import {
+  SettingsModal,
+  type SettingsScreen,
+} from '@/components/settings-modal';
 import {
   AUTOCOMPLETE_PREFIX_MAX_LENGTH,
   AUTOCOMPLETE_SUFFIX_MAX_LENGTH,
   type AutocompleteRequest,
+  type AutocompleteResponse,
   type LanguageSettings,
 } from '@/src/shared/autocomplete';
 import { validateAutocompleteRequest } from '@/src/shared/validate-autocomplete-request';
@@ -17,6 +23,7 @@ const DEFAULT_LANGUAGE_SETTINGS: LanguageSettings = {
   nativeLanguage: 'ko',
   targetLanguage: 'en',
 };
+const GHOST_CURSOR_DWELL_MS = 3000;
 // todo: 초기값 변경
 const INITIAL_CONTENT = '<p>I want to keep writing in English without losing my flow.</p>';
 
@@ -132,31 +139,15 @@ function createAutocompleteRequest(
     languageSettings,
   };
 }
-// 언어 선택
-function LanguageSelect({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className='block rounded-2xl border border-zinc-200 p-3'>
-      <div className='text-xs text-zinc-500'>{label}</div>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className='mt-2 w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-900 outline-none focus:border-emerald-400'
-      >
-        <option value='ko'>한국어</option>
-        <option value='en'>영어</option>
-        <option value='ja'>일본어</option>
-        <option value='zh'>중국어</option>
-      </select>
-    </label>
-  );
+
+function isAutocompleteResponse(input: unknown): input is AutocompleteResponse {
+  if (!input || typeof input !== 'object') {
+    return false;
+  }
+
+  const response = input as Partial<AutocompleteResponse>;
+
+  return typeof response.output === 'string' && typeof response.requestId === 'string';
 }
 
 function SettingsIcon() {
@@ -178,96 +169,19 @@ function SettingsIcon() {
   );
 }
 
-function DebugPanel({
-  isOpen,
-  requestPreview,
-  requestValidation,
-}: {
-  isOpen: boolean;
-  requestPreview: AutocompleteRequest;
-  requestValidation: ReturnType<typeof validateAutocompleteRequest>;
-}) {
-  if (!isOpen) {
-    return null;
-  }
-
-  return (
-    <div className='grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]'>
-      <div className='rounded-3xl border border-dashed border-zinc-300 p-5'>
-        <div className='mb-3 text-sm font-semibold'>Debug inspection</div>
-        <div className='grid gap-3 md:grid-cols-2'>
-          <div className='rounded-2xl bg-zinc-950 p-4 text-sm text-zinc-200'>
-            <div className='mb-2 font-medium text-white'>prefix</div>
-            <div className='mb-2 text-xs text-zinc-400'>
-              {requestPreview.prefix.length} / {AUTOCOMPLETE_PREFIX_MAX_LENGTH} chars
-            </div>
-            <pre className='max-h-56 overflow-auto text-xs leading-5 break-words whitespace-pre-wrap text-zinc-300'>
-              {requestPreview.prefix || '(empty)'}
-            </pre>
-          </div>
-
-          <div className='rounded-2xl bg-zinc-950 p-4 text-sm text-zinc-200'>
-            <div className='mb-2 font-medium text-white'>suffix</div>
-            <div className='mb-2 text-xs text-zinc-400'>
-              {requestPreview.suffix.length} / {AUTOCOMPLETE_SUFFIX_MAX_LENGTH} chars
-            </div>
-            <pre className='max-h-56 overflow-auto text-xs leading-5 break-words whitespace-pre-wrap text-zinc-300'>
-              {requestPreview.suffix || '(empty)'}
-            </pre>
-          </div>
-        </div>
-      </div>
-
-      <div className='rounded-3xl bg-zinc-950 p-5 text-sm text-zinc-200'>
-        <div className='mb-3 flex items-center justify-between'>
-          <div className='font-semibold text-white'>Debug preview</div>
-          <span className='rounded-full bg-white/10 px-2.5 py-1 text-xs text-zinc-300'>
-            {requestValidation.ok ? 'valid' : 'invalid'}
-          </span>
-        </div>
-        <div className='space-y-3'>
-          <div className='rounded-2xl border border-white/10 bg-white/5 p-3'>
-            <div className='text-xs text-zinc-500'>nativeLanguage</div>
-            <div className='mt-1 font-medium text-white'>
-              {requestPreview.languageSettings.nativeLanguage}
-            </div>
-          </div>
-          <div className='rounded-2xl border border-white/10 bg-white/5 p-3'>
-            <div className='text-xs text-zinc-500'>targetLanguage</div>
-            <div className='mt-1 font-medium text-white'>
-              {requestPreview.languageSettings.targetLanguage}
-            </div>
-          </div>
-          <div className='rounded-2xl border border-white/10 bg-white/5 p-3'>
-            <div className='text-xs text-zinc-500'>validation</div>
-            <div className='mt-1 font-medium text-white'>
-              {requestValidation.ok ? 'valid request' : 'invalid request'}
-            </div>
-            {!requestValidation.ok && (
-              <div className='mt-2 text-xs leading-5 text-amber-200'>
-                {requestValidation.message}
-              </div>
-            )}
-          </div>
-          <div className='rounded-2xl border border-white/10 bg-white/5 p-3'>
-            <div className='text-xs text-zinc-500'>payload</div>
-            <pre className='mt-2 text-xs leading-5 break-words whitespace-pre-wrap text-zinc-300'>
-              {JSON.stringify(requestPreview, null, 2)}
-            </pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function EditorWorkbench() {
   const [languageSettings, setLanguageSettings] = useState<LanguageSettings>(
     readStoredLanguageSettings,
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
   const [isDebugOpen, setIsDebugOpen] = useState<boolean>(false);
-  const [settingsScreen, setSettingsScreen] = useState<'list' | 'language'>('list');
+  const [settingsScreen, setSettingsScreen] = useState<SettingsScreen>('list');
+  const [ghostReadyContextKey, setGhostReadyContextKey] = useState<string | null>(null);
+  const [isGhostVisible, setIsGhostVisible] = useState<boolean>(false);
+  const [ghostText, setGhostText] = useState<string | null>(null);
+  const lastRequestedKeyRef = useRef<string | null>(null);
+  const ghostTextRef = useRef<string | null>(ghostText);
+  const isGhostVisibleRef = useRef<boolean>(isGhostVisible);
   const [snapshot, setSnapshot] = useState<EditorSnapshot>({
     documentText: '',
     paragraphText: '',
@@ -298,6 +212,31 @@ export function EditorWorkbench() {
         class:
           'h-full min-h-full outline-none text-lg leading-8 text-zinc-900 whitespace-pre-wrap break-words',
       },
+      handleKeyDown(_view, event) {
+        if (!isGhostVisibleRef.current) {
+          return false;
+        }
+
+        if (event.key === 'Tab') {
+          event.preventDefault();
+          console.log('[ghost] tab accept placeholder', {
+            ghostText: ghostTextRef.current,
+          });
+
+          return true;
+        }
+
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          console.log('[ghost] escape dismiss placeholder', {
+            ghostText: ghostTextRef.current,
+          });
+
+          return true;
+        }
+
+        return false;
+      },
     },
     onCreate({ editor }) {
       editor.commands.focus('end');
@@ -314,6 +253,11 @@ export function EditorWorkbench() {
   useEffect(() => {
     window.localStorage.setItem(LANGUAGE_STORAGE_KEY, JSON.stringify(languageSettings));
   }, [languageSettings]);
+
+  useEffect(() => {
+    ghostTextRef.current = ghostText;
+    isGhostVisibleRef.current = isGhostVisible;
+  }, [ghostText, isGhostVisible]);
   // todo: useMemo 필요성 검토
   const requestPreview = useMemo(
     () => createAutocompleteRequest(snapshot, languageSettings),
@@ -324,6 +268,107 @@ export function EditorWorkbench() {
     () => validateAutocompleteRequest(requestPreview),
     [requestPreview],
   );
+  const isSelectionCollapsed = snapshot.selectionStart === snapshot.selectionEnd;
+  const ghostContextKey = [
+    snapshot.paragraphText,
+    snapshot.prefix,
+    snapshot.suffix,
+    snapshot.selectionStart,
+    snapshot.selectionEnd,
+  ].join('::');
+  const requestKey = useMemo(() => JSON.stringify(requestPreview), [requestPreview]);
+  const isGhostEligible =
+    isSelectionCollapsed && ghostReadyContextKey === ghostContextKey;
+
+  useEffect(() => {
+    if (!isSelectionCollapsed) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setGhostReadyContextKey(ghostContextKey);
+    }, GHOST_CURSOR_DWELL_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [ghostContextKey, isSelectionCollapsed]);
+
+  useEffect(() => {
+    let isCancelled = false;
+    const abortController = new AbortController();
+
+    async function syncGhostState() {
+      if (!isGhostEligible || !requestValidation.ok) {
+        lastRequestedKeyRef.current = null;
+        setGhostText(null);
+        setIsGhostVisible(false);
+        return;
+      }
+
+      if (lastRequestedKeyRef.current === requestKey) {
+        console.log('[ghost] duplicate request skipped', {
+          requestKey,
+        });
+        return;
+      }
+
+      lastRequestedKeyRef.current = requestKey;
+
+      try {
+        const response = await fetch('/api/completion', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestPreview),
+          signal: abortController.signal,
+        });
+        const payload: unknown = await response.json();
+
+        if (isCancelled) {
+          return;
+        }
+
+        if (!response.ok || !isAutocompleteResponse(payload) || !payload.output.trim()) {
+          setGhostText(null);
+          setIsGhostVisible(false);
+          console.log('[ghost] completion request failed', {
+            payload,
+            requestKey,
+            status: response.status,
+          });
+          return;
+        }
+
+        setGhostText(payload.output);
+        setIsGhostVisible(true);
+        console.log('[ghost] completion request success', {
+          output: payload.output,
+          requestKey,
+          requestId: payload.requestId,
+        });
+      } catch (error) {
+        if (abortController.signal.aborted || isCancelled) {
+          return;
+        }
+
+        setGhostText(null);
+        setIsGhostVisible(false);
+        console.log('[ghost] completion request error', {
+          error,
+          requestKey,
+        });
+      }
+    }
+
+    void syncGhostState();
+
+    return () => {
+      isCancelled = true;
+      abortController.abort();
+    };
+  }, [isGhostEligible, requestKey, requestPreview, requestValidation]);
 
   return (
     <main className='flex min-h-screen flex-col bg-zinc-950 text-zinc-50'>
@@ -371,7 +416,12 @@ export function EditorWorkbench() {
               </div>
 
               <DebugPanel
+                ghostText={ghostText}
                 isOpen={isDebugOpen}
+                isGhostEligible={isGhostEligible}
+                isGhostVisible={isGhostVisible}
+                isSelectionCollapsed={isSelectionCollapsed}
+                ghostCursorDwellMs={GHOST_CURSOR_DWELL_MS}
                 requestPreview={requestPreview}
                 requestValidation={requestValidation}
               />
@@ -380,79 +430,27 @@ export function EditorWorkbench() {
         </div>
       </section>
 
-      {isSettingsOpen && (
-        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-6 py-8'>
-          <div className='w-full max-w-md rounded-[28px] border border-white/10 bg-zinc-950 p-6 text-zinc-50 shadow-2xl shadow-black/40'>
-            <div className='mb-6 flex items-center justify-between gap-4'>
-              <div className='flex items-center gap-3'>
-                {settingsScreen === 'language' && (
-                  <button
-                    type='button'
-                    aria-label='설정 목록으로 돌아가기'
-                    className='inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10'
-                    onClick={() => {
-                      setSettingsScreen('list');
-                    }}
-                  >
-                    ←
-                  </button>
-                )}
-                <div className='text-lg font-semibold'>
-                  {settingsScreen === 'list' ? 'Settings' : 'Language settings'}
-                </div>
-              </div>
-              <button
-                type='button'
-                aria-label='설정 닫기'
-                className='inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10'
-                onClick={() => {
-                  setSettingsScreen('list');
-                  setIsSettingsOpen(false);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            {settingsScreen === 'list' ? (
-              <div className='space-y-3'>
-                <button
-                  type='button'
-                  className='flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-left transition hover:bg-white/10'
-                  onClick={() => {
-                    setSettingsScreen('language');
-                  }}
-                >
-                  <div>
-                    <div className='font-medium text-white'>언어 설정</div>
-                    <div className='mt-1 text-sm text-zinc-400'>
-                      {languageSettings.nativeLanguage} → {languageSettings.targetLanguage}
-                    </div>
-                  </div>
-                  <span className='text-zinc-500'>→</span>
-                </button>
-              </div>
-            ) : (
-              <div className='space-y-3'>
-                <LanguageSelect
-                  label='모국어'
-                  value={languageSettings.nativeLanguage}
-                  onChange={(value) => {
-                    setLanguageSettings((prev) => ({ ...prev, nativeLanguage: value }));
-                  }}
-                />
-                <LanguageSelect
-                  label='목표 언어'
-                  value={languageSettings.targetLanguage}
-                  onChange={(value) => {
-                    setLanguageSettings((prev) => ({ ...prev, targetLanguage: value }));
-                  }}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        languageSettings={languageSettings}
+        settingsScreen={settingsScreen}
+        onClose={() => {
+          setSettingsScreen('list');
+          setIsSettingsOpen(false);
+        }}
+        onOpenLanguage={() => {
+          setSettingsScreen('language');
+        }}
+        onBack={() => {
+          setSettingsScreen('list');
+        }}
+        onNativeLanguageChange={(value) => {
+          setLanguageSettings((prev) => ({ ...prev, nativeLanguage: value }));
+        }}
+        onTargetLanguageChange={(value) => {
+          setLanguageSettings((prev) => ({ ...prev, targetLanguage: value }));
+        }}
+      />
     </main>
   );
 }
