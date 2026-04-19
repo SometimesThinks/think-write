@@ -106,9 +106,7 @@ export function DebugPanel({
             <div className='mt-1 font-medium text-white'>
               {isGhostVisible ? 'visible' : 'hidden'}
             </div>
-            <div className='mt-2 text-xs leading-5 text-zinc-400'>
-              {ghostText ?? '(empty)'}
-            </div>
+            <div className='mt-2 text-xs leading-5 text-zinc-400'>{ghostText ?? '(empty)'}</div>
           </div>
           <div className='rounded-2xl border border-white/10 bg-white/5 p-3'>
             <div className='text-xs text-zinc-500'>payload</div>

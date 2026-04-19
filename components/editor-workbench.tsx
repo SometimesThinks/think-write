@@ -36,6 +36,11 @@ type EditorSnapshot = {
   selectionEnd: number;
 };
 
+type GhostPosition = {
+  top: number;
+  left: number;
+};
+
 // 설정 언어 설정 읽기
 function readStoredLanguageSettings(): LanguageSettings {
   // SSR일 때 window 객체에 접근하는 것을 방지
@@ -179,9 +184,11 @@ export function EditorWorkbench() {
   const [ghostReadyContextKey, setGhostReadyContextKey] = useState<string | null>(null);
   const [isGhostVisible, setIsGhostVisible] = useState<boolean>(false);
   const [ghostText, setGhostText] = useState<string | null>(null);
+  const [ghostPosition, setGhostPosition] = useState<GhostPosition | null>(null);
   const lastRequestedKeyRef = useRef<string | null>(null);
   const ghostTextRef = useRef<string | null>(ghostText);
   const isGhostVisibleRef = useRef<boolean>(isGhostVisible);
+  const editorSurfaceRef = useRef<HTMLDivElement | null>(null);
   const [snapshot, setSnapshot] = useState<EditorSnapshot>({
     documentText: '',
     paragraphText: '',
@@ -258,6 +265,36 @@ export function EditorWorkbench() {
     ghostTextRef.current = ghostText;
     isGhostVisibleRef.current = isGhostVisible;
   }, [ghostText, isGhostVisible]);
+
+  useEffect(() => {
+    if (!editor || !editorSurfaceRef.current || !isGhostVisible || !ghostText) {
+      return;
+    }
+
+    const activeEditor: NonNullable<typeof editor> = editor;
+
+    function updateGhostPosition() {
+      if (!editorSurfaceRef.current) {
+        return;
+      }
+
+      const cursorCoords = activeEditor.view.coordsAtPos(activeEditor.state.selection.from);
+      const surfaceRect = editorSurfaceRef.current.getBoundingClientRect();
+
+      setGhostPosition({
+        top: cursorCoords.top - surfaceRect.top,
+        left: cursorCoords.left - surfaceRect.left,
+      });
+    }
+
+    updateGhostPosition();
+    window.addEventListener('resize', updateGhostPosition);
+
+    return () => {
+      window.removeEventListener('resize', updateGhostPosition);
+    };
+  }, [editor, ghostText, isGhostVisible, snapshot.selectionEnd, snapshot.selectionStart]);
+
   // todo: useMemo 필요성 검토
   const requestPreview = useMemo(
     () => createAutocompleteRequest(snapshot, languageSettings),
@@ -408,8 +445,22 @@ export function EditorWorkbench() {
         <div className='flex flex-1'>
           <section className='flex min-h-[640px] w-full flex-col rounded-[32px] border border-white/10 bg-white p-6 text-zinc-950 shadow-2xl shadow-black/20'>
             <div className='flex flex-1 flex-col gap-6'>
-              <div className='relative flex min-h-[420px] flex-1 flex-col rounded-3xl border border-zinc-200 bg-zinc-50 p-5 pb-14'>
+              <div
+                ref={editorSurfaceRef}
+                className='relative flex min-h-[420px] flex-1 flex-col rounded-3xl border border-zinc-200 bg-zinc-50 p-5 pb-14'
+              >
                 <EditorContent editor={editor} className='h-full flex-1' />
+                {ghostPosition && ghostText && isGhostVisible && (
+                  <div
+                    className='pointer-events-none absolute z-10 max-w-[calc(100%-2.5rem)] text-lg leading-8 whitespace-pre-wrap text-zinc-400/80'
+                    style={{
+                      left: ghostPosition.left,
+                      top: ghostPosition.top,
+                    }}
+                  >
+                    {ghostText}
+                  </div>
+                )}
                 <div className='absolute right-5 bottom-4 rounded-full bg-white/90 px-3 py-1 text-xs font-medium text-zinc-500 shadow-sm'>
                   {snapshot.documentText.length} chars
                 </div>
