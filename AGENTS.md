@@ -12,7 +12,7 @@ ThinkWrite는 외국어 글쓰기 과정에서 표현 추천과 교정 지원을
 
 - 학습 언어 설정
 - Ghost Complete
-- BYOK 기반 provider 연동
+- `.env` 기반 provider 연동
 
 아래 항목은 현재 MVP 범위에 포함하지 않는다.
 
@@ -69,7 +69,7 @@ ThinkWrite는 외국어 글쓰기 과정에서 표현 추천과 교정 지원을
 1. 편집기 기반 UI
 2. 학습 언어 설정
 3. Ghost Complete 프로토타입
-4. BYOK 설정
+4. provider runtime 설정
 5. provider 연동
 6. 고도화
 
@@ -83,11 +83,13 @@ ThinkWrite는 외국어 글쓰기 과정에서 표현 추천과 교정 지원을
 - 에디터: Tiptap
 - 스타일링 방식: Tailwind CSS
 - 상태 관리 방식: React state
-- LLM 연동 방식: BYOK + 단일 원격 provider + fetch/adapter
+- LLM 연동 방식: self-hosted `.env` + 단일 원격 provider + fetch/adapter
+- 초기 provider: OpenAI
+- 초기 모델: `gpt-5-nano`
 
 미확정:
 
-- 실제 provider 선택
+- 앱 내부 provider 등록 UX 도입 시점
 
 미확정 항목은 합의 없이 고정하지 않는다.
 
